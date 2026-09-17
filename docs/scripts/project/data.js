@@ -37,7 +37,6 @@ const supabase = USE_MOCK ? null : createClient(SUPABASE_URL, SUPABASE_PUBLISHAB
 });
 
 // Where Discord sends the user back to: this exact page, without query/hash.
-// Must be listed under Supabase -> Authentication -> URL Configuration.
 const REDIRECT_URL = window.location.origin + window.location.pathname;
 
 function check({ data, error }) {
@@ -47,13 +46,9 @@ function check({ data, error }) {
 
 const supabaseApi = {
   client: supabase,
-
-  // Returns the signed-in user. If nobody is signed in, the page leaves for
-  // Discord and comes back here signed in (this promise never resolves).
   async signIn() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      // Tidy the "?code=..." Discord left in the address bar.
       if (window.location.search.includes("code=")) {
         window.history.replaceState(null, "", REDIRECT_URL);
       }
