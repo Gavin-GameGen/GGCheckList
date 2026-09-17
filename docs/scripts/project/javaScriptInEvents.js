@@ -18,9 +18,23 @@ const scriptsInEvents = {
 
 	async Frontend_Event2(runtime, localVars)
 	{
-		const items = await api.getChecklist();
-		runtime.objects.JSON.getFirstInstance().setJsonDataCopy(items);
-		runtime.callFunction("OnChecklistLoaded");
+		try {
+		  await api.signIn();  // goes to Discord if not signed in
+		  const profile = await api.getProfile();
+		  if (!profile || profile.role === "pending") {
+		    console.warn("Signed in, waiting for approval:", profile?.display_name);
+		    return;
+		  }
+		  if (profile.role !== "student") {
+		    console.log("Mentor/admin signed in; mentor screen not built yet.");
+		    return;
+		  }
+		  const items = await api.getChecklist();
+		  runtime.objects.JSON.getFirstInstance().setJsonDataCopy(items);
+		  runtime.callFunction("OnChecklistLoaded");
+		} catch (err) {
+		  console.error("Could not load checklist:", err);
+		}
 	}
 };
 
