@@ -1390,6 +1390,105 @@ self.C3_ExpressionFuncs = [
 		p => {
 			const n0 = p._GetNode(0);
 			return () => (1 - n0.ExpInstVar());
+		},
+		() => "pending",
+		() => "student",
+		() => "mentor",
+		() => "admin",
+		() => "TestSetup",
+		() => 3,
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			return () => (f0() / 2);
+		},
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			return () => (100 + (f0() * 100));
+		},
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			return () => f0();
+		},
+		() => "Admin",
+		() => "Mentor",
+		() => 2,
+		() => "Student",
+		() => "Pending",
+		() => "message",
+		p => {
+			const n0 = p._GetNode(0);
+			return () => and(n0.ExpObject("."), " users");
+		},
+		() => 100,
+		p => {
+			const v0 = p._GetNode(0).GetVar();
+			return () => (220 + (v0.GetValue() * 70));
+		},
+		p => {
+			const n0 = p._GetNode(0);
+			return () => n0.ExpObject(".display_name");
+		},
+		() => 750,
+		p => {
+			const n0 = p._GetNode(0);
+			return () => n0.ExpObject(".user_id");
+		},
+		() => "role",
+		p => {
+			const n0 = p._GetNode(0);
+			return () => n0.ExpObject(".role");
+		},
+		() => 1100,
+		p => {
+			const n0 = p._GetNode(0);
+			const n1 = p._GetNode(1);
+			return () => (and("Mentor: ", ((((n0.ExpObject(".mentor_name")) === ("") ? 1 : 0)) ? ("Unassigned") : (n1.ExpObject(".mentor_name")))) + "   ▾");
+		},
+		() => "mentors",
+		p => {
+			const n0 = p._GetNode(0);
+			return () => and(n0.ExpObject(".student_count"), " students");
+		},
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			const v1 = p._GetNode(1).GetVar();
+			const v2 = p._GetNode(2).GetVar();
+			const v3 = p._GetNode(3).GetVar();
+			return () => f0(10, (((((v1.GetValue() + ((5 * 55) + 10))) > (1070) ? 1 : 0)) ? (((v2.GetValue() - 50) - ((5 * 55) + 10))) : (v3.GetValue())));
+		},
+		() => "Popup",
+		p => {
+			const v0 = p._GetNode(0).GetVar();
+			return () => (v0.GetValue() - 10);
+		},
+		() => 260,
+		() => 285,
+		() => "opt",
+		() => 4,
+		p => {
+			const v0 = p._GetNode(0).GetVar();
+			const f1 = p._GetNode(1).GetBoundMethod();
+			return () => ((v0.GetValue() + 5) + (f1() * 55));
+		},
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			const f1 = p._GetNode(1).GetBoundMethod();
+			return () => f0("pending,student,mentor,admin,", f1(), ",");
+		},
+		p => {
+			const n0 = p._GetNode(0);
+			const n1 = p._GetNode(1);
+			const v2 = p._GetNode(2).GetVar();
+			const n3 = p._GetNode(3);
+			return () => ((((n0.ExpInstVar()) === ("") ? 1 : 0)) ? ("Cancel") : ((((((n1.ExpInstVar()) === (v2.GetValue()) ? 1 : 0)) ? ("> ") : ("   ")) + n3.ExpInstVar())));
+		},
+		p => {
+			const n0 = p._GetNode(0);
+			return () => n0.ExpObject();
+		},
+		p => {
+			const n0 = p._GetNode(0);
+			return () => (n0.ExpObject() + 45);
 		}
 ];
 
