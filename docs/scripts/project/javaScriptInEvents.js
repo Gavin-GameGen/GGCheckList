@@ -7,6 +7,24 @@ import { loadMentorBoard, clearMentorBoard, toggleCheckFromTap, submitFromTap } 
 
 const scriptsInEvents = {
 
+	async Bootlogic_Event4(runtime, localVars)
+	{
+		try {
+		  if (runtime.globalVars.Testing) {
+		    setMockMode(true);
+		    setMockUserByRole(runtime.globalVars.Role);
+		  } else {
+		    setMockMode(false);
+		    await api.signIn();
+		    const profile = await api.getProfile();
+		    runtime.globalVars.Role = profile?.role ?? "pending";
+		  }
+		  runtime.callFunction("ApplyRole");
+		} catch (err) {
+		  console.error("Boot failed:", err);
+		}
+	},
+
 	async Corelogic_Event2(runtime, localVars)
 	{
 		try {
@@ -44,24 +62,6 @@ const scriptsInEvents = {
 		} catch (err) {
 		  console.error("Save failed:", err);
 		  runtime.callFunction("SaveFinished", itemId, 0);
-		}
-	},
-
-	async Bootlogic_Event4(runtime, localVars)
-	{
-		try {
-		  if (runtime.globalVars.Testing) {
-		    setMockMode(true);
-		    setMockUserByRole(runtime.globalVars.Role);
-		  } else {
-		    setMockMode(false);
-		    await api.signIn();
-		    const profile = await api.getProfile();
-		    runtime.globalVars.Role = profile?.role ?? "pending";
-		  }
-		  runtime.callFunction("ApplyRole");
-		} catch (err) {
-		  console.error("Boot failed:", err);
 		}
 	},
 
