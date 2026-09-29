@@ -1,5 +1,6 @@
 // data.js
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { matchRank, normalizeQuery } from "./namematch.js";
 
 // Event sheets only ever talk to `api`.
 // Mock mode is switched on at runtime by the Testing sheet (via Boot -> setMockMode).
@@ -164,6 +165,46 @@ function checksFromMock(users) {
   return checks;
 }
 
+// ---------------------------------------------------------------- pins
+// Students a mentor has pinned to their own view from the search bar, on
+// top of the students assigned to them. Each line is a mentor's user_id
+// followed by the user_ids of the students they have pinned. Pins belong to
+// one mentor only: pinning a student does not change who their mentor is,
+// and other mentors do not see it.
+//
+// Test Mentor (u02) is the one you are signed in as from the Testing
+// screen. Try e.g.  u02: ["u10", "u17"]  to start with two pinned.
+const MOCK_PINS = {
+  u02: []
+};
+
+// Turns MOCK_PINS into one set of pinned student ids per mentor. Only read
+// at startup and on reset(), so pinning in the app does not rewrite the
+// table above. Anything that is not a mentor or a student is skipped.
+function pinsFromMock(users) {
+  const roleOf = new Map(users.map(u => [u.user_id, u.role]));
+  const pins = new Map();
+
+  for (const [mentorId, ids] of Object.entries(MOCK_PINS)) {
+    if (roleOf.get(mentorId) !== "mentor") {
+      console.warn(`[mock] MOCK_PINS has "${mentorId}", who is not a mentor in MOCK_USERS - ignored`);
+      continue;
+    }
+    const set = new Set();
+    for (const id of ids ?? []) {
+      if (roleOf.get(id) !== "student") {
+        console.warn(`[mock] MOCK_PINS: ${mentorId} pins "${id}", who is not a student in MOCK_USERS - ignored`);
+        continue;
+      }
+      set.add(id);
+    }
+    pins.set(mentorId, set);
+  }
+  return pins;
+}
+
+// matchRank / normalizeQuery live in namematch.js, shared with the admin view.
+
 const byRoleThenName = (a, b) =>
   ROLES.indexOf(b.role) - ROLES.indexOf(a.role) || a.display_name.localeCompare(b.display_name);
 
@@ -176,6 +217,9 @@ const mock = {
   // The checklist columns, and who has ticked what today.
   items: structuredClone(MOCK_ITEMS),
   checks: checksFromMock(MOCK_USERS),
+
+  // mentor_id -> Set of pinned student ids
+  pins: pinsFromMock(MOCK_USERS),
 
   // helpers: mimic the checks Supabase will do server-side
   _me() { return this.users.find(u => u.user_id === this.meId) ?? null; },
@@ -199,6 +243,22 @@ const mock = {
   _mentorFor(studentId) {
     const link = this.assignments.find(a => a.student_id === studentId);
     return link ? this._user(link.mentor_id) : null;
+  },
+  // The student ids one mentor has pinned.
+  _pinsFor(mentorId) {
+    if (!this.pins.has(mentorId)) this.pins.set(mentorId, new Set());
+    return this.pins.get(mentorId);
+  },
+  // One student as the mentor view draws them.
+  _checklistRow(u) {
+    const ticked = this._checksFor(u.user_id);
+    return {
+      user_id: u.user_id,
+      display_name: u.display_name,
+      total_exp: u.total_exp,
+      mentor_name: this._mentorFor(u.user_id)?.display_name ?? "",
+      items: this.items.map(i => ({ item_id: i.item_id, done: ticked.has(i.item_id) }))
+    };
   },
 
   // auth / profile
@@ -303,23 +363,73 @@ const mock = {
       .filter(a => a.mentor_id === me.user_id)
       .map(a => this._user(a.student_id))
       .sort((a, b) => a.display_name.localeCompare(b.display_name))
-      .map(u => {
-        const ticked = this._checksFor(u.user_id);
+      .map(u => this._checklistRow(u));
+  },
+
+  // The search bar. Every student whose name matches, best match first:
+  // [{ user_id, display_name, mentor_name, is_mine, is_pinned }]
+  //   is_mine    assigned to the signed-in mentor (already on their view)
+  //   is_pinned  pinned by the signed-in mentor
+  async searchStudents(query) {
+    const me = this._requireRole("mentor");
+    const q = normalizeQuery(query);
+    if (!q) return [];
+
+    const pins = this._pinsFor(me.user_id);
+    return this.users
+      .filter(u => u.role === "student")
+      .map(u => ({ u, rank: matchRank(u.display_name, q) }))
+      .filter(m => m.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.u.display_name.localeCompare(b.u.display_name))
+      .map(({ u }) => {
+        const mentor = this._mentorFor(u.user_id);
         return {
           user_id: u.user_id,
           display_name: u.display_name,
-          total_exp: u.total_exp,
-          items: this.items.map(i => ({ item_id: i.item_id, done: ticked.has(i.item_id) }))
+          mentor_name: mentor?.display_name ?? "",
+          is_mine: mentor?.user_id === me.user_id,
+          is_pinned: pins.has(u.user_id)
         };
       });
   },
 
+  // Pins are per mentor and change nobody's assignment.
+  async pinStudent(studentId) {
+    const me = this._requireRole("mentor");
+    if (this._user(studentId).role !== "student") throw new Error("That user is not a student");
+    this._pinsFor(me.user_id).add(studentId);
+  },
+
+  async unpinStudent(studentId) {
+    const me = this._requireRole("mentor");
+    this._pinsFor(me.user_id).delete(studentId);
+  },
+
+  // The pinned students, drawn under the mentor's own. Same shape as
+  // getMyStudentsChecklists, plus mentor_name. A pinned student who has
+  // since been assigned to this mentor is left out here (they are already
+  // in the top list), and so is anyone who is no longer a student.
+  async getPinnedStudentsChecklists() {
+    const me = this._requireRole("mentor");
+    return [...this._pinsFor(me.user_id)]
+      .map(id => this.users.find(u => u.user_id === id))
+      .filter(u => u && u.role === "student")
+      .filter(u => this._mentorFor(u.user_id)?.user_id !== me.user_id)
+      .sort((a, b) => a.display_name.localeCompare(b.display_name))
+      .map(u => this._checklistRow(u));
+  },
+
   // A mentor confirming one student's row: `doneItemIds` is the whole row
   // as it now stands, so anything left out of it counts as unticked.
+  //
+  // Allowed for the mentor's own students and for students they have
+  // pinned; the whole row is saved either way.
   async setStudentChecklist(studentId, doneItemIds) {
     const me = this._requireRole("mentor");
     const mentor = this._mentorFor(studentId);
-    if (!mentor || mentor.user_id !== me.user_id)
+    const mine = !!mentor && mentor.user_id === me.user_id;
+    const pinned = this._pinsFor(me.user_id).has(studentId);
+    if (!mine && !pinned)
       throw new Error("That student is not one of yours");
 
     const known = new Set(this.items.map(i => i.item_id));
@@ -337,6 +447,7 @@ const mock = {
     this.assignments = assignmentsFromUsers(MOCK_USERS);
     this.items = structuredClone(MOCK_ITEMS);
     this.checks = checksFromMock(MOCK_USERS);
+    this.pins = pinsFromMock(MOCK_USERS);
   }
 };
 
@@ -426,7 +537,11 @@ const supabaseApi = {
   async getMyStudents()                      { notConnectedYet("getMyStudents"); },
   async listChecklistItems()                 { notConnectedYet("listChecklistItems"); },
   async getMyStudentsChecklists()            { notConnectedYet("getMyStudentsChecklists"); },
-  async setStudentChecklist(studentId, ids)  { notConnectedYet("setStudentChecklist"); }
+  async setStudentChecklist(studentId, ids)  { notConnectedYet("setStudentChecklist"); },
+  async searchStudents(query)                { notConnectedYet("searchStudents"); },
+  async pinStudent(studentId)                { notConnectedYet("pinStudent"); },
+  async unpinStudent(studentId)              { notConnectedYet("unpinStudent"); },
+  async getPinnedStudentsChecklists()        { notConnectedYet("getPinnedStudentsChecklists"); }
 };
 
 // `api` forwards every call to whichever backend is active *right now*,

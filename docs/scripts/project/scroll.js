@@ -13,12 +13,16 @@
 // wheel notch and thumb drag for itself, so the list behind it stays put
 // while the popup is open.
 //
+// The mentor board registers itself as "mentor" (see mentor.js).
+//
 // The admin user list only needs two calls:
 //   initListScroll(runtime, { ... })   once, on start of layout
 //   refreshListScroll()                every time the list is rebuilt
 
 const DEFAULTS = {
-	rows: "UserRowText",      // object type the list rows are made of
+	rows: "UserRowText",      // what the list rows are made of: an object type
+	                          // name, a list of names, or a function that
+	                          // returns the instances (see rowInstances)
 	track: "ScrollTrack",     // sprite: the bar itself
 	thumb: "ScrollThumb",     // sprite: the handle that slides along it
 	top: 200,                 // top of the visible band, in layout coordinates
@@ -75,14 +79,14 @@ export function refreshScroller(id) {
 	if (!s) return;
 
 	const { cfg } = s;
-	const rows = instancesOf(s, cfg.rows);
+	const rows = rowInstances(s);
 
 	// Rows are created at their unscrolled positions, so that is the baseline.
 	s.baseY = new Map(rows.map(inst => [inst.uid, inst.y]));
 
 	let lowest = cfg.top;
 	for (const inst of rows)
-		lowest = Math.max(lowest, inst.y + inst.height);
+		lowest = Math.max(lowest, inst.getBoundingBox().bottom);
 	s.contentHeight = lowest + cfg.padding - cfg.top;
 
 	apply(s);
@@ -137,14 +141,16 @@ function apply(s) {
 	const max = maxOffset(s);
 	s.offset = normalize(s, s.offset);
 
-	for (const inst of instancesOf(s, cfg.rows)) {
+	for (const inst of rowInstances(s)) {
 		const base = s.baseY.get(inst.uid);
 		if (base === undefined) continue;
 
 		inst.y = base - s.offset;
 		// A row is only drawn while its middle is inside the band, so rows
-		// never creep up over the column headings.
-		inst.isVisible = (inst.y + inst.height / 2 >= cfg.top) && (inst.y < cfg.bottom);
+		// never creep up over the column headings. Measured from the
+		// bounding box so sprites with a centred origin work too.
+		const box = inst.getBoundingBox();
+		inst.isVisible = ((box.top + box.bottom) / 2 >= cfg.top) && (box.top < cfg.bottom);
 	}
 
 	const track = firstInstance(s, cfg.track);
@@ -173,6 +179,20 @@ function normalize(s, value) {
 	const max = maxOffset(s);
 	if (s.cfg.snap > 0) value = Math.round(value / s.cfg.snap) * s.cfg.snap;
 	return clamp(value, 0, max);
+}
+
+// The instances that make up the list. `rows` can be one object type name
+// (the admin list), several names, or a function returning the instances
+// themselves - the mentor board uses that, because its row objects share
+// types with headings and the search drop-down that must not scroll.
+function rowInstances(s) {
+	const rows = s.cfg.rows;
+	if (typeof rows === "function") {
+		try { return (rows() ?? []).filter(Boolean); }
+		catch (err) { console.error("[scroll] rows() failed:", err); return []; }
+	}
+	if (Array.isArray(rows)) return rows.flatMap(name => instancesOf(s, name));
+	return instancesOf(s, rows);
 }
 
 function instancesOf(s, name) {

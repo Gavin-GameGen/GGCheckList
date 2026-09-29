@@ -18,3 +18,10 @@ async function OnBeforeProjectStart(runtime)
 	
 	runtime.addEventListener("tick", () => Tick(runtime));
 }
+
+// Was missing: the listener above called it every frame and threw
+// "Tick is not defined", which can stop other tick code from running.
+function Tick(runtime)
+{
+	// Code to run every tick.
+}
