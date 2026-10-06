@@ -1354,10 +1354,10 @@ function or(l, r)
 self.C3_ExpressionFuncs = [
 		() => ".",
 		() => 0,
-		() => 365,
+		() => 250,
 		p => {
 			const v0 = p._GetNode(0).GetVar();
-			return () => (200 + (v0.GetValue() * 140));
+			return () => (250 + (v0.GetValue() * 150));
 		},
 		() => "",
 		p => {
@@ -1370,12 +1370,16 @@ self.C3_ExpressionFuncs = [
 		},
 		p => {
 			const n0 = p._GetNode(0);
+			return () => and("Item", n0.ExpObject(".item_id"));
+		},
+		p => {
+			const n0 = p._GetNode(0);
 			return () => n0.ExpInstVar();
 		},
-		() => 90,
+		() => 150,
 		p => {
 			const v0 = p._GetNode(0).GetVar();
-			return () => (160 + (v0.GetValue() * 140));
+			return () => (125 + (v0.GetValue() * 150));
 		},
 		p => {
 			const n0 = p._GetNode(0);

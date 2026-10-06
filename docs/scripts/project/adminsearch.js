@@ -12,7 +12,7 @@
 //
 // How it fits the existing events:
 //   LoadUsers        passes the list through orderAdminUsers() before it
-//                    goes into UsersJSON, so a reload keeps the current order
+//                    goes into AJsonUsers, so a reload keeps the current order
 //   OnUsersLoaded    calls decorateAdminRows() after building the rows, to
 //                    bold the matched letters and fade the non-matches
 //   the search bar   (studentsearch.js, onType) calls reorderAdminUsers()
@@ -50,7 +50,7 @@ export function reorderAdminUsers(runtime, text) {
 		runtime.callFunction("CloseRoleDropdown");
 	}
 
-	const json = runtime.objects.UsersJSON.getFirstInstance();
+	const json = runtime.objects.AJsonUsers.getFirstInstance();
 	if (!json) return;
 	json.setJsonDataCopy(sorted());
 	runtime.callFunction("OnUsersLoaded");
@@ -88,7 +88,7 @@ function rankOf(user) {
 // matched letters in each name, fades the rows that do not match, and adds
 // the match count to the status line.
 export function decorateAdminRows(runtime) {
-	const type = runtime.objects.UserRowText;
+	const type = runtime.objects.ATextUserRow;
 	if (!type) return;
 
 	const byId = new Map(loaded.map(user => [user.user_id, user]));
@@ -108,7 +108,7 @@ export function decorateAdminRows(runtime) {
 	}
 
 	if (query) {
-		const status = runtime.objects.AdminStatusText?.getFirstInstance();
+		const status = runtime.objects.ATextStatus?.getFirstInstance();
 		if (status)
 			status.text = `${loaded.length} users  ·  ${matches} matching "${query}"`;
 	}

@@ -95,11 +95,11 @@ export async function openMentorDropdown(runtime, studentId, x, rowY, rowH) {
 	const top  = clamp(openUp ? above - height : below, EDGE, Math.max(EDGE, screenH - EDGE - height));
 
 	// --- build it -------------------------------------------------------
-	const bg = runtime.objects.DropdownBG.createInstance("Popup", left - PAD, top);
+	const bg = runtime.objects.ASpriteDropdownBG.createInstance("Popup", left - PAD, top);
 	bg.width  = WIDTH + PAD * 2;
 	bg.height = height;
 
-	const header = runtime.objects.MentorDone.createInstance("Popup", left, top + PAD);
+	const header = runtime.objects.ATextMentorDone.createInstance("Popup", left, top + PAD);
 	header.width  = WIDTH;
 	header.height = HEADER_H;
 	header.text   = "[b]× Cancel[/b]   ·   a student has one mentor at a time";
@@ -107,7 +107,7 @@ export async function openMentorDropdown(runtime, studentId, x, rowY, rowH) {
 	const listTop = top + PAD + HEADER_H;
 
 	lines.forEach((line, i) => {
-		const option = runtime.objects.MentorOption.createInstance("Popup", left, listTop + i * ROW_H);
+		const option = runtime.objects.ATextMentorOption.createInstance("Popup", left, listTop + i * ROW_H);
 		option.width  = WIDTH - BAR_W - 6;
 		option.height = OPTION_H;
 		option.instVars.action     = line.action;
@@ -119,13 +119,13 @@ export async function openMentorDropdown(runtime, studentId, x, rowY, rowH) {
 
 	// The panel's own scrollbar, down its right-hand edge.
 	const listHeight = rows * ROW_H;
-	place(runtime.objects.MentorTrack, left + WIDTH - BAR_W, listTop, BAR_W, listHeight);
-	place(runtime.objects.MentorThumb, left + WIDTH - BAR_W, listTop, BAR_W, listHeight);
+	place(runtime.objects.ASpriteMentorTrack, left + WIDTH - BAR_W, listTop, BAR_W, listHeight);
+	place(runtime.objects.ASpriteMentorThumb, left + WIDTH - BAR_W, listTop, BAR_W, listHeight);
 
 	initScroller(runtime, SCROLLER, {
-		rows:    "MentorOption",
-		track:   "MentorTrack",
-		thumb:   "MentorThumb",
+		rows:    "ATextMentorOption",
+		track:   "ASpriteMentorTrack",
+		thumb:   "ASpriteMentorThumb",
 		top:     listTop,
 		bottom:  listTop + listHeight,
 		wheelStep: ROW_H,        // one mentor per wheel notch
@@ -142,7 +142,7 @@ export async function openMentorDropdown(runtime, studentId, x, rowY, rowH) {
 export async function pickMentorFromTap(runtime) {
 	if (!panel || panel.busy) return;
 
-	const option = runtime.objects.MentorOption.getFirstPickedInstance();
+	const option = runtime.objects.ATextMentorOption.getFirstPickedInstance();
 	if (!option || !option.isVisible) return;          // a line scrolled out of the panel
 
 	const action = option.instVars.action;
@@ -184,11 +184,11 @@ export async function pickMentorFromTap(runtime) {
 export function closeMentorDropdown(runtime, { reload = true } = {}) {
 	destroyScroller(SCROLLER);
 
-	for (const name of ["MentorOption", "MentorDone", "DropdownBG"])
+	for (const name of ["ATextMentorOption", "ATextMentorDone", "ASpriteDropdownBG"])
 		destroyAll(runtime, name);
 
-	hide(runtime.objects.MentorTrack);
-	hide(runtime.objects.MentorThumb);
+	hide(runtime.objects.ASpriteMentorTrack);
+	hide(runtime.objects.ASpriteMentorThumb);
 
 	const wasDirty = panel ? panel.dirty : false;
 	panel = null;
@@ -205,7 +205,7 @@ function panelHeight(rows) {
 }
 
 function mentorsFromList(runtime) {
-	const json  = runtime.objects.UsersJSON.getFirstInstance();
+	const json  = runtime.objects.AJsonUsers.getFirstInstance();
 	const users = json ? json.getJsonDataCopy() : [];
 	return (Array.isArray(users) ? users : [])
 		.filter(u => u.role === "mentor")

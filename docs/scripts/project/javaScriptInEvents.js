@@ -5,6 +5,7 @@ import { openMentorDropdown, pickMentorFromTap, closeMentorDropdown, isMentorDro
 import { loadMentorBoard, clearMentorBoard, toggleCheckFromTap, submitFromTap, describeStudent, selectNameFromTap, pinFromTap, searchForMentor, initMentorScroll } from "./mentor.js";
 import { initStudentSearch, destroyStudentSearch, refreshStudentSearch, closeStudentSearch, isStudentSearchOpen, isUnderStudentSearch } from "./studentsearch.js";
 import { initDetailBox, stepDetailBox, selectStudentFromTap, tapDetailBox, tapDetailText, openDetailBox, closeDetailBox, refreshDetailBox, isUnderDetailBox, isDetailBoxOpen, getSelectedStudent } from "./detailbox.js";
+import { levelInfo, updateProgressBar } from "./level.js";
 import { orderAdminUsers, reorderAdminUsers, decorateAdminRows, resetAdminSearch } from "./adminsearch.js";
 
 
@@ -32,6 +33,8 @@ const scriptsInEvents = {
 		  const tempText  = runtime.objects.STextTempEXP.getFirstInstance();
 		  if (totalText) totalText.text = "Total EXP: " + (totals?.total_exp ?? 0);
 		  if (tempText)  tempText.text  = "Today's EXP: +" + (totals?.pending_exp ?? 0);
+		  // Fill the level bar and set its "total / next level" text (see level.js).
+		  updateProgressBar(runtime, totals?.total_exp ?? 0);
 		} catch (err) {
 		  console.error("Loading totals failed:", err);
 		}
@@ -187,11 +190,11 @@ const scriptsInEvents = {
 		  box:   "ASpriteDetailBoxBG",
 		  text:  "ATextDetail",
 		  layer: "Popup",
-		  names: "UserRowText",
+		  names: "ATextUserRow",
 		  // Only the name cell of a student row can be selected.
 		  idOf: cell => cell.instVars.col === "name" && cell.instVars.role === "student" ? cell.instVars.userId : "",
 		  describe: id => {
-		    const json  = runtime.objects.UsersJSON.getFirstInstance();
+		    const json  = runtime.objects.AJsonUsers.getFirstInstance();
 		    const users = json ? json.getJsonDataCopy() : [];
 		    const user  = (Array.isArray(users) ? users : []).find(u => u.user_id === id);
 		    if (!user) return { title: "Details", body: "" };
@@ -217,9 +220,9 @@ const scriptsInEvents = {
 		// The user list can be taller than the screen, so give it a scrollbar.
 		// Mouse wheel, dragging the thumb, or clicking the track all scroll it.
 		initListScroll(runtime, {
-		  rows: "UserRowText",
-		  track: "ScrollTrack",
-		  thumb: "ScrollThumb",
+		  rows: "ATextUserRow",
+		  track: "ASpriteScrollTrack",
+		  thumb: "ASpriteScrollThumb",
 		  top: 200,          // just under the column headings
 		  bottom: 1040,      // bottom of the layout
 		  wheelStep: 70,     // one row per wheel notch
@@ -238,7 +241,7 @@ const scriptsInEvents = {
 		try {
 		  const users = await api.listUsers();
 		  // Sorted for whatever is in the search bar, so a reload keeps the order.
-		  runtime.objects.UsersJSON.getFirstInstance().setJsonDataCopy(orderAdminUsers(users ?? []));
+		  runtime.objects.AJsonUsers.getFirstInstance().setJsonDataCopy(orderAdminUsers(users ?? []));
 		  runtime.callFunction("OnUsersLoaded");
 		} catch (err) {
 		  console.error("Loading users failed:", err);
@@ -305,7 +308,7 @@ const scriptsInEvents = {
 	async Adminlogic_Event33(runtime, localVars)
 	{
 		// A Details cell hidden behind the open Details panel does nothing.
-		const cell = runtime.objects.UserRowText.getFirstPickedInstance();
+		const cell = runtime.objects.ATextUserRow.getFirstPickedInstance();
 		if (isUnderDetailBox(cell)) {
 		  runtime.globalVars.DropdownUserId = "";
 		  return;
@@ -315,7 +318,7 @@ const scriptsInEvents = {
 		// The panel opens against the row it belongs to: just under it normally,
 		// and just above it when the row sits near the bottom of the screen.
 		// With dozens of mentors the list inside gets its own scrollbar.
-		const row = runtime.objects.UserRowText.getFirstPickedInstance();
+		const row = runtime.objects.ATextUserRow.getFirstPickedInstance();
 		if (row)
 		  await openMentorDropdown(runtime, row.instVars.userId, row.x, row.y, row.height);
 	},

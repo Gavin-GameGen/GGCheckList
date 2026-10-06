@@ -20,11 +20,11 @@
 //   refreshListScroll()                every time the list is rebuilt
 
 const DEFAULTS = {
-	rows: "UserRowText",      // what the list rows are made of: an object type
+	rows: "ATextUserRow",      // what the list rows are made of: an object type
 	                          // name, a list of names, or a function that
 	                          // returns the instances (see rowInstances)
-	track: "ScrollTrack",     // sprite: the bar itself
-	thumb: "ScrollThumb",     // sprite: the handle that slides along it
+	track: "ASpriteScrollTrack",     // sprite: the bar itself
+	thumb: "ASpriteScrollThumb",     // sprite: the handle that slides along it
 	top: 200,                 // top of the visible band, in layout coordinates
 	bottom: 1040,             // bottom of the visible band
 	wheelStep: 70,            // how far one wheel notch moves the list (one row)

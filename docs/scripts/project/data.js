@@ -529,19 +529,63 @@ const supabaseApi = {
     return () => client().removeChannel(channel);
   }, 
   
-  async listUsers()                          { notConnectedYet("listUsers"); },
-  async setUserRole(userId, role)            { notConnectedYet("setUserRole"); },
-  async listAssignments()                    { notConnectedYet("listAssignments"); },
-  async assignStudent(mentorId, studentId)   { notConnectedYet("assignStudent"); },
-  async unassignStudent(mentorId, studentId) { notConnectedYet("unassignStudent"); },
-  async getMyStudents()                      { notConnectedYet("getMyStudents"); },
-  async listChecklistItems()                 { notConnectedYet("listChecklistItems"); },
-  async getMyStudentsChecklists()            { notConnectedYet("getMyStudentsChecklists"); },
-  async setStudentChecklist(studentId, ids)  { notConnectedYet("setStudentChecklist"); },
-  async searchStudents(query)                { notConnectedYet("searchStudents"); },
-  async pinStudent(studentId)                { notConnectedYet("pinStudent"); },
-  async unpinStudent(studentId)              { notConnectedYet("unpinStudent"); },
-  async getPinnedStudentsChecklists()        { notConnectedYet("getPinnedStudentsChecklists"); }
+  // admin: users & roles
+  async listUsers() {
+    return check(await client().rpc("list_users"));
+  },
+  async setUserRole(userId, role) {
+    check(await client().rpc("set_user_role", { p_user_id: userId, p_role: role }));
+  },
+
+  // admin: assignments
+  async listAssignments() {
+    return check(await client().rpc("list_assignments"));
+  },
+  async assignStudent(mentorId, studentId) {
+    check(await client().rpc("assign_student", { p_mentor_id: mentorId, p_student_id: studentId }));
+  },
+  async unassignStudent(mentorId, studentId) {
+    check(await client().rpc("unassign_student", { p_mentor_id: mentorId, p_student_id: studentId }));
+  },
+
+  // mentor
+  async getMyStudents() {
+    return check(await client().rpc("get_my_students"));
+  },
+  async listChecklistItems() {
+    return check(await client().rpc("get_checklist_items"));
+  },
+  async getMyStudentsChecklists() {
+    return check(await client().rpc("get_my_students_checklists"));
+  },
+  async getPinnedStudentsChecklists() {
+    return check(await client().rpc("get_pinned_students_checklists"));
+  },
+  async setStudentChecklist(studentId, ids) {
+    check(await client().rpc("set_student_checklist", {
+      p_student_id: studentId,
+      p_done_item_ids: (ids ?? []).map(Number)
+    }));
+  },
+
+  // Supabase returns every student whose name contains each typed word;
+  // the best-match-first order is worked out here, same rules as mock mode.
+  async searchStudents(query) {
+    const q = normalizeQuery(query);
+    if (!q) return [];
+    const rows = check(await client().rpc("search_students", { p_query: q })) ?? [];
+    return rows
+      .map(u => ({ u, rank: matchRank(u.display_name, q) }))
+      .filter(m => m.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.u.display_name.localeCompare(b.u.display_name))
+      .map(m => m.u);
+  },
+  async pinStudent(studentId) {
+    check(await client().rpc("pin_student", { p_student_id: studentId }));
+  },
+  async unpinStudent(studentId) {
+    check(await client().rpc("unpin_student", { p_student_id: studentId }));
+  }
 };
 
 // `api` forwards every call to whichever backend is active *right now*,
