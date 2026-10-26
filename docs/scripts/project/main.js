@@ -1,4 +1,6 @@
 
+import { installSchedule } from "./schedule.js";
+
 // Import any other script files here, e.g.:
 // import * as myModule from "./mymodule.js";
 
@@ -17,6 +19,9 @@ async function OnBeforeProjectStart(runtime)
 	// instances are created and available to use here.
 	
 	runtime.addEventListener("tick", () => Tick(runtime));
+
+	// 10:01am soft refresh, midnight reload, weekend lock (see schedule.js)
+	installSchedule(runtime);
 }
 
 // Was missing: the listener above called it every frame and threw

@@ -7,6 +7,7 @@ import { initStudentSearch, destroyStudentSearch, refreshStudentSearch, closeStu
 import { initDetailBox, stepDetailBox, selectStudentFromTap, tapDetailBox, tapDetailText, openDetailBox, closeDetailBox, refreshDetailBox, isUnderDetailBox, isDetailBoxOpen, getSelectedStudent } from "./detailbox.js";
 import { levelInfo, updateProgressBar } from "./level.js";
 import { playLevelUp, dismissLevelUp, stopLevelUp, isLevelUpPlaying, checkForLevelUp, watchForCommittedExp, LEVEL_UP_FX } from "./levelup.js";
+import { isWeekendLocked, applyWeekendLock, softRefresh, hardRefresh, pacificNow, SCHEDULE, WEEKEND_LOCK } from "./schedule.js";
 import { orderAdminUsers, reorderAdminUsers, decorateAdminRows, resetAdminSearch } from "./adminsearch.js";
 
 
@@ -15,7 +16,8 @@ const scriptsInEvents = {
 	async Corelogic_Event2(runtime, localVars)
 	{
 		try {
-		  const items = await api.getChecklist();
+		  // Locked for the weekend (schedule.js): build no checkboxes.
+		  const items = isWeekendLocked() ? [] : await api.getChecklist();
 		  // Use the JSON instance if one is placed in a layout, otherwise create one.
 		  const json = runtime.objects.JSON.getFirstInstance()
 		            ?? runtime.objects.JSON.createInstance(0, 0, 0);
@@ -41,7 +43,8 @@ const scriptsInEvents = {
 		  updateProgressBar(runtime, totals?.total_exp ?? 0);
 		  // Play the level-up celebration if they have gone up a level since they last saw it
 		  // (covers EXP committed at 10am while the app was closed). See levelup.js.
-		  await checkForLevelUp(runtime, totals?.total_exp ?? 0);
+		  // Not while the weekend lock covers the screen: it plays on Monday instead.
+		  if (!isWeekendLocked()) await checkForLevelUp(runtime, totals?.total_exp ?? 0);
 		} catch (err) {
 		  console.error("Loading totals failed:", err);
 		}
@@ -83,6 +86,9 @@ const scriptsInEvents = {
 		// Reload totals every few minutes and when the app comes back to the foreground,
 		// so EXP committed at 10am (and any level-up) shows up while the app is open.
 		watchForCommittedExp(runtime);
+		
+		// Saturday and Sunday (Pacific): cover the screen with the lock sprite and text.
+		applyWeekendLock(runtime);
 	},
 
 	async Studentlogic_Event6(runtime, localVars)

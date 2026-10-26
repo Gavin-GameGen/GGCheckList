@@ -134,6 +134,8 @@ self.C3_JsPropNameTable = [
 	{STextLeveUp: 0},
 	{SSpriteConfetti: 0},
 	{STextHeldEXP: 0},
+	{SSpriteLockedBackground: 0},
+	{STextLockedInfo: 0},
 	{PTextInfo: 0},
 	{JSON: 0},
 	{Touch: 0},
@@ -206,6 +208,8 @@ self.InstanceType = {
 	STextLeveUp: class extends self.ITextInstance {},
 	SSpriteConfetti: class extends self.ISpriteInstance {},
 	STextHeldEXP: class extends self.ITextInstance {},
+	SSpriteLockedBackground: class extends self.ISpriteInstance {},
+	STextLockedInfo: class extends self.ITextInstance {},
 	PTextInfo: class extends self.ITextInstance {},
 	JSON: class extends self.IJSONInstance {},
 	Touch: class extends self.IInstance {}
