@@ -29,6 +29,7 @@ import { api } from "./data.js";
 import { refreshDetailBox, isUnderDetailBox, selectStudentFromTap } from "./detailbox.js";
 import { refreshStudentSearch, isUnderStudentSearch, isStudentSearchInstance } from "./studentsearch.js";
 import { initScroller, refreshScroller } from "./scroll.js";
+import { itemsForToday } from "./schedule.js";
 
 // ---------------------------------------------------------------- layout
 // Everything about where the grid sits on screen is in this one block.
@@ -177,7 +178,8 @@ export async function loadMentorBoard(runtime) {
 
 	const unsaved = captureUnsaved();
 	clearMentorBoard();
-	drawBoard(runtime, items ?? [], mine ?? [], pinned ?? []);
+	// Friday-only items and the like only get a column on their day (schedule.js).
+	drawBoard(runtime, itemsForToday(items ?? []), mine ?? [], pinned ?? []);
 	restoreUnsaved(unsaved);
 
 	// Measure the new rows and resize the scrollbar. The scroll position is

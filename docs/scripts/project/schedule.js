@@ -30,6 +30,8 @@ import { loadMentorBoard } from "./mentor.js";
 //   checkinSchedule.lock(true)      show the weekend lock (false hides it,
 //                                   null goes back to following the day)
 //   checkinSchedule.now()           the Pacific date/time the page sees
+//   checkinSchedule.day("Fri")      pretend it is Friday for day-only items
+//                                   (null goes back to following the clock)
 
 // ================================================================ tweak me
 export const SCHEDULE = {
@@ -49,6 +51,17 @@ export const WEEKEND_LOCK = {
   background: "SSpriteLockedBackground",
   text: "STextLockedInfo",
   textPadding: 40,            // gap between the text and the screen edges, px
+};
+
+// Checklist items that only show up on certain days (Pacific). Any item not
+// listed here shows every day as usual. Applies to the student checklist and
+// to the mentor board's columns.
+//   item_id: [the days it shows]   days are "Mon" "Tue" "Wed" "Thu" "Fri"
+export const DAY_ONLY_ITEMS = {
+  items: {
+    5: ["Mon"],               // the Friday-only item
+  },
+  forceDay: null,             // null: follow the clock. "Fri" etc.: pretend it is that day (testing)
 };
 // ========================================================================
 
@@ -73,6 +86,24 @@ export function pacificNow(when = new Date()) {
 
 // "2026-10-26 10:01:30": sorts in time order as plain text.
 const stamp = c => `${c.date} ${c.time}`;
+
+// ---------------------------------------------------------------- day-only items
+
+// Today's day ("Mon".."Sun") as far as DAY_ONLY_ITEMS is concerned.
+export function checklistDay() {
+  return DAY_ONLY_ITEMS.forceDay ?? pacificNow().weekday;
+}
+
+// Drops the items that are not meant to show today (see DAY_ONLY_ITEMS).
+// Works on both the student's [{ item_id, label, exp, done }] and the
+// mentor's column list [{ item_id, label, exp }].
+export function itemsForToday(items) {
+  const today = checklistDay();
+  return (items ?? []).filter(item => {
+    const days = DAY_ONLY_ITEMS.items[item.item_id];
+    return !days || days.includes(today);
+  });
+}
 
 // ---------------------------------------------------------------- weekend lock
 
@@ -223,6 +254,12 @@ export function installSchedule(runtime) {
         runtime.callFunction("LoadTotals");
       }
       return locked;
+    }),
+    day: testOnly(d => {
+      DAY_ONLY_ITEMS.forceDay = d ?? null;
+      if (runtime.layout.name === "StudentLayout") runtime.callFunction("LoadChecklist");
+      else if (runtime.layout.name === "MentorLayout") loadMentorBoard(runtime);
+      return checklistDay();
     }),
   };
 }

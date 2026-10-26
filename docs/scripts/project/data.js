@@ -126,7 +126,8 @@ const MOCK_ITEMS = [
   { item_id: 1, label: "Check In",       exp: 10 },
   { item_id: 2, label: "Talk to Mentor", exp: 15 },
   { item_id: 3, label: "Show Your Work", exp: 20 },
-  { item_id: 4, label: "Join an Event",  exp: 25 }
+  { item_id: 4, label: "Join an Event",  exp: 25 },
+  { item_id: 5, label: "Friday Item",    exp: 40 }   // Fridays only, see DAY_ONLY_ITEMS in schedule.js
 ];
 
 // Today's ticks, per student: a user_id from MOCK_USERS, followed by the

@@ -7,7 +7,7 @@ import { initStudentSearch, destroyStudentSearch, refreshStudentSearch, closeStu
 import { initDetailBox, stepDetailBox, selectStudentFromTap, tapDetailBox, tapDetailText, openDetailBox, closeDetailBox, refreshDetailBox, isUnderDetailBox, isDetailBoxOpen, getSelectedStudent } from "./detailbox.js";
 import { levelInfo, updateProgressBar } from "./level.js";
 import { playLevelUp, dismissLevelUp, stopLevelUp, isLevelUpPlaying, checkForLevelUp, watchForCommittedExp, LEVEL_UP_FX } from "./levelup.js";
-import { isWeekendLocked, applyWeekendLock, softRefresh, hardRefresh, pacificNow, SCHEDULE, WEEKEND_LOCK } from "./schedule.js";
+import { isWeekendLocked, applyWeekendLock, softRefresh, hardRefresh, pacificNow, SCHEDULE, WEEKEND_LOCK, DAY_ONLY_ITEMS, itemsForToday, checklistDay } from "./schedule.js";
 import { orderAdminUsers, reorderAdminUsers, decorateAdminRows, resetAdminSearch } from "./adminsearch.js";
 import { initViewSwitch, switchViewFromTap } from "./viewswitch.js";
 
@@ -18,7 +18,8 @@ const scriptsInEvents = {
 	{
 		try {
 		  // Locked for the weekend (schedule.js): build no checkboxes.
-		  const items = isWeekendLocked() ? [] : await api.getChecklist();
+		  // Day-only items (e.g. the Friday item) are dropped on other days, see DAY_ONLY_ITEMS in schedule.js.
+		  const items = isWeekendLocked() ? [] : itemsForToday(await api.getChecklist());
 		  // Use the JSON instance if one is placed in a layout, otherwise create one.
 		  const json = runtime.objects.JSON.getFirstInstance()
 		            ?? runtime.objects.JSON.createInstance(0, 0, 0);
@@ -80,6 +81,114 @@ const scriptsInEvents = {
 		} catch (err) {
 		  console.error("Boot failed:", err);
 		}
+	},
+
+	async Studentlogic_Event2(runtime, localVars)
+	{
+		// Reload totals every few minutes and when the app comes back to the foreground,
+		// so EXP committed at 10am (and any level-up) shows up while the app is open.
+		watchForCommittedExp(runtime);
+		
+		// Saturday and Sunday (Pacific): cover the screen with the lock sprite and text.
+		applyWeekendLock(runtime);
+	},
+
+	async Studentlogic_Event6(runtime, localVars)
+	{
+		// Tap the banner (or its text, which sits on top of it) to send it back up early.
+		dismissLevelUp();
+	},
+
+	async Mentorlogic_Event2(runtime, localVars)
+	{
+		// The slide-out Details panel (detailbox.js). Tap a student's name to
+		// select them, then tap the "<" tab on the right edge to slide it in.
+		initDetailBox(runtime, {
+		  box:   "MSpriteDetailBoxBG",
+		  text:  "MTextDetail",
+		  layer: "Popup",
+		  names: "MTextStudentName",
+		  idOf:  name => name.instVars.studentId,   // "" on the Student heading
+		  describe: describeStudent
+		});
+		
+		// The search bar (studentsearch.js). Type a name to get a drop-down of
+		// matching students, each with a Pin button that adds them under your
+		// own students. The Pin taps are handled by the events further down.
+		initStudentSearch(runtime, {
+		  bar:         "MSpriteSearchBarBG",
+		  placeholder: "MTextSearchBarText",
+		  layer:       "Popup",
+		  background:  "MSearchDropdownBG",
+		  rowText:     "MTextSearchResult",
+		  button:      "MButtonPin",
+		  buttonText:  "MTextPin",
+		  search:      searchForMentor
+		});
+		
+		// Scrollbar down the left edge (MScrollTrack / MScrollThumb) for when
+		// there are more students than fit. Mouse wheel, drag the thumb, or
+		// click the track. It only appears when there is something to scroll.
+		initMentorScroll(runtime);
+		
+		// Draws the whole view: a heading per checklist item, a row for every
+		// student assigned to this mentor, a checkbox under each column, and a
+		// Submit button at the end of the row.
+		await loadMentorBoard(runtime);
+	},
+
+	async Mentorlogic_Event4(runtime, localVars)
+	{
+		// The search box is a real HTML text box on the page, so it has to be
+		// taken off again or it would sit over the next layout.
+		destroyStudentSearch();
+	},
+
+	async Mentorlogic_Event6(runtime, localVars)
+	{
+		toggleCheckFromTap(runtime);
+	},
+
+	async Mentorlogic_Event8(runtime, localVars)
+	{
+		await submitFromTap(runtime, "MButtonSubmit");
+	},
+
+	async Mentorlogic_Event10(runtime, localVars)
+	{
+		await submitFromTap(runtime, "MTextSubmit");
+	},
+
+	async Mentorlogic_Event12(runtime, localVars)
+	{
+		await pinFromTap(runtime, "MButtonPin");
+	},
+
+	async Mentorlogic_Event14(runtime, localVars)
+	{
+		await pinFromTap(runtime, "MTextPin");
+	},
+
+	async Mentorlogic_Event16(runtime, localVars)
+	{
+		// Ignored while the name is hidden under the search drop-down.
+		selectNameFromTap(runtime);
+	},
+
+	async Mentorlogic_Event18(runtime, localVars)
+	{
+		tapDetailBox(runtime.globalVars.MDetailTapX, runtime.globalVars.MDetailTapY);
+	},
+
+	async Mentorlogic_Event20(runtime, localVars)
+	{
+		// Slides the Details panel a frame's worth.
+		stepDetailBox(runtime.dt);
+	},
+
+	async Mentorlogic_Event22(runtime, localVars)
+	{
+		tapDetailText(runtime);
 	},
 
 	async Adminlogic_Event2(runtime, localVars)
@@ -252,114 +361,6 @@ const scriptsInEvents = {
 	async Adminlogic_Event39(runtime, localVars)
 	{
 		closeMentorDropdown(runtime);
-	},
-
-	async Mentorlogic_Event2(runtime, localVars)
-	{
-		// The slide-out Details panel (detailbox.js). Tap a student's name to
-		// select them, then tap the "<" tab on the right edge to slide it in.
-		initDetailBox(runtime, {
-		  box:   "MSpriteDetailBoxBG",
-		  text:  "MTextDetail",
-		  layer: "Popup",
-		  names: "MTextStudentName",
-		  idOf:  name => name.instVars.studentId,   // "" on the Student heading
-		  describe: describeStudent
-		});
-		
-		// The search bar (studentsearch.js). Type a name to get a drop-down of
-		// matching students, each with a Pin button that adds them under your
-		// own students. The Pin taps are handled by the events further down.
-		initStudentSearch(runtime, {
-		  bar:         "MSpriteSearchBarBG",
-		  placeholder: "MTextSearchBarText",
-		  layer:       "Popup",
-		  background:  "MSearchDropdownBG",
-		  rowText:     "MTextSearchResult",
-		  button:      "MButtonPin",
-		  buttonText:  "MTextPin",
-		  search:      searchForMentor
-		});
-		
-		// Scrollbar down the left edge (MScrollTrack / MScrollThumb) for when
-		// there are more students than fit. Mouse wheel, drag the thumb, or
-		// click the track. It only appears when there is something to scroll.
-		initMentorScroll(runtime);
-		
-		// Draws the whole view: a heading per checklist item, a row for every
-		// student assigned to this mentor, a checkbox under each column, and a
-		// Submit button at the end of the row.
-		await loadMentorBoard(runtime);
-	},
-
-	async Mentorlogic_Event4(runtime, localVars)
-	{
-		// The search box is a real HTML text box on the page, so it has to be
-		// taken off again or it would sit over the next layout.
-		destroyStudentSearch();
-	},
-
-	async Mentorlogic_Event6(runtime, localVars)
-	{
-		toggleCheckFromTap(runtime);
-	},
-
-	async Mentorlogic_Event8(runtime, localVars)
-	{
-		await submitFromTap(runtime, "MButtonSubmit");
-	},
-
-	async Mentorlogic_Event10(runtime, localVars)
-	{
-		await submitFromTap(runtime, "MTextSubmit");
-	},
-
-	async Mentorlogic_Event12(runtime, localVars)
-	{
-		await pinFromTap(runtime, "MButtonPin");
-	},
-
-	async Mentorlogic_Event14(runtime, localVars)
-	{
-		await pinFromTap(runtime, "MTextPin");
-	},
-
-	async Mentorlogic_Event16(runtime, localVars)
-	{
-		// Ignored while the name is hidden under the search drop-down.
-		selectNameFromTap(runtime);
-	},
-
-	async Mentorlogic_Event18(runtime, localVars)
-	{
-		tapDetailBox(runtime.globalVars.MDetailTapX, runtime.globalVars.MDetailTapY);
-	},
-
-	async Mentorlogic_Event20(runtime, localVars)
-	{
-		// Slides the Details panel a frame's worth.
-		stepDetailBox(runtime.dt);
-	},
-
-	async Mentorlogic_Event22(runtime, localVars)
-	{
-		tapDetailText(runtime);
-	},
-
-	async Studentlogic_Event2(runtime, localVars)
-	{
-		// Reload totals every few minutes and when the app comes back to the foreground,
-		// so EXP committed at 10am (and any level-up) shows up while the app is open.
-		watchForCommittedExp(runtime);
-		
-		// Saturday and Sunday (Pacific): cover the screen with the lock sprite and text.
-		applyWeekendLock(runtime);
-	},
-
-	async Studentlogic_Event6(runtime, localVars)
-	{
-		// Tap the banner (or its text, which sits on top of it) to send it back up early.
-		dismissLevelUp();
 	},
 
 	async Viewswitch_Event2(runtime, localVars)
