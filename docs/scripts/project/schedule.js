@@ -59,7 +59,7 @@ export const WEEKEND_LOCK = {
 //   item_id: [the days it shows]   days are "Mon" "Tue" "Wed" "Thu" "Fri"
 export const DAY_ONLY_ITEMS = {
   items: {
-    5: ["Mon"],               // the Friday-only item
+    5: ["Fri"],               // the Friday-only item
   },
   forceDay: null,             // null: follow the clock. "Fri" etc.: pretend it is that day (testing)
 };
