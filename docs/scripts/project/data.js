@@ -263,6 +263,7 @@ const mock = {
 
   // auth / profile
   async signIn() { return this._me(); },
+  async getMyUserId() { return this.meId; },
   async getProfile() {
     const me = this._me();
     return me ? { display_name: me.display_name, role: me.role, avatar_url: me.avatar_url } : null;
@@ -442,6 +443,20 @@ const mock = {
     this.checks.set(studentId, next);
   },
 
+  // Pretend it is 10am: today's ticked EXP is added to the signed-in
+  // student's permanent total and their checklist is cleared.
+  // From the browser console:  await checkinApi.commitToday()
+  // then the student view picks it up within LEVEL_CHECK.recheckSeconds, or
+  // straight away if you tab away and back.
+  async commitToday() {
+    const me = this._requireRole("student");
+    const { pending_exp } = await this.getTotals();
+    me.total_exp += pending_exp;
+    this._checksFor(me.user_id).clear();
+    console.log(`[mock] committed ${pending_exp} EXP, ${me.display_name} now has ${me.total_exp}`);
+    return me.total_exp;
+  },
+
   reset() {
     this.users = structuredClone(MOCK_USERS);
     this.assignments = assignmentsFromUsers(MOCK_USERS);
@@ -500,6 +515,12 @@ const supabaseApi = {
 
   async signOut() {
     check(await client().auth.signOut());
+  },
+
+  // The signed-in user's id (from the saved session, no network call).
+  async getMyUserId() {
+    const { data: { session } } = await client().auth.getSession();
+    return session?.user?.id ?? null;
   },
 
   // -> [{ item_id, label, exp, done }]  (today's list, date decided by server)
