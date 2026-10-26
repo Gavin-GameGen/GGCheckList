@@ -138,6 +138,16 @@ const MOCK_CHECKED = {
   u11: [1]            // Taylor Nguyen   (unassigned)
 };
 
+// Held EXP, per student: what they earned YESTERDAY. The checklist was
+// cleared at midnight, but this EXP is not in total_exp yet - mentors can
+// still review and dispute it until it is committed at 10am. A student left
+// out of here has nothing held. Shown in STextHeldEXP on the student view.
+const MOCK_HELD = {
+  u03: 45,            // Test Student
+  u08: 70,            // Sam Patel
+  u18: 30             // Rodrick Johnson
+};
+
 // Turns MOCK_CHECKED into one set of ticked item_ids per student. Only read
 // at startup and on reset(), so ticking a box in the app does not rewrite
 // the table above.
@@ -218,6 +228,9 @@ const mock = {
   items: structuredClone(MOCK_ITEMS),
   checks: checksFromMock(MOCK_USERS),
 
+  // user_id -> yesterday's EXP waiting for the 10am commit
+  held: new Map(Object.entries(MOCK_HELD)),
+
   // mentor_id -> Set of pinned student ids
   pins: pinsFromMock(MOCK_USERS),
 
@@ -283,7 +296,11 @@ const mock = {
   async getTotals() {
     const ticked = this._checksFor(this.meId);
     const pending = this.items.filter(i => ticked.has(i.item_id)).reduce((s, i) => s + i.exp, 0);
-    return { total_exp: this._me()?.total_exp ?? 0, pending_exp: pending };
+    return {
+      total_exp:   this._me()?.total_exp ?? 0,
+      pending_exp: pending,
+      held_exp:    this.held.get(this.meId) ?? 0
+    };
   },
 
   // the checklist columns, without anybody's ticks: [{ item_id, label, exp }]
@@ -443,18 +460,35 @@ const mock = {
     this.checks.set(studentId, next);
   },
 
-  // Pretend it is 10am: today's ticked EXP is added to the signed-in
-  // student's permanent total and their checklist is cleared.
-  // From the browser console:  await checkinApi.commitToday()
-  // then the student view picks it up within LEVEL_CHECK.recheckSeconds, or
-  // straight away if you tab away and back.
-  async commitToday() {
+  // The daily cycle, for the signed-in student, from the browser console.
+  // The student view picks each step up within LEVEL_CHECK.recheckSeconds,
+  // or straight away if you tab away and back.
+  //
+  //   await checkinApi.midnight()     today's ticked EXP becomes held EXP and
+  //                                   the checklist is cleared
+  //   await checkinApi.tenAm()        held EXP is added to the permanent total
+  //   await checkinApi.commitToday()  both at once (today's EXP straight to total)
+  async midnight() {
     const me = this._requireRole("student");
-    const { pending_exp } = await this.getTotals();
-    me.total_exp += pending_exp;
+    const { pending_exp, held_exp } = await this.getTotals();
+    // Anything still held from the day before is committed first, as 10am would have.
+    if (held_exp) await this.tenAm();
+    this.held.set(me.user_id, pending_exp);
     this._checksFor(me.user_id).clear();
-    console.log(`[mock] committed ${pending_exp} EXP, ${me.display_name} now has ${me.total_exp}`);
+    console.log(`[mock] midnight: ${pending_exp} EXP is now held for ${me.display_name}`);
+    return pending_exp;
+  },
+  async tenAm() {
+    const me = this._requireRole("student");
+    const held = this.held.get(me.user_id) ?? 0;
+    me.total_exp += held;
+    this.held.delete(me.user_id);
+    console.log(`[mock] 10am: committed ${held} held EXP, ${me.display_name} now has ${me.total_exp}`);
     return me.total_exp;
+  },
+  async commitToday() {
+    await this.midnight();
+    return this.tenAm();
   },
 
   reset() {
@@ -462,6 +496,7 @@ const mock = {
     this.assignments = assignmentsFromUsers(MOCK_USERS);
     this.items = structuredClone(MOCK_ITEMS);
     this.checks = checksFromMock(MOCK_USERS);
+    this.held = new Map(Object.entries(MOCK_HELD));
     this.pins = pinsFromMock(MOCK_USERS);
   }
 };
@@ -532,10 +567,13 @@ const supabaseApi = {
     check(await client().rpc("set_item_done", { p_item_id: itemId, p_done: done }));
   },
 
-  // -> { total_exp, pending_exp }
+  // -> { total_exp, pending_exp, held_exp }
+  //   held_exp  yesterday's EXP, after the midnight clear but before the 10am
+  //             commit. 0 if get_my_totals doesn't return it yet.
   async getTotals() {
     const rows = check(await client().rpc("get_my_totals"));
-    return rows[0];
+    const row = rows?.[0] ?? {};
+    return { ...row, held_exp: row.held_exp ?? 0 };
   },
 
   // Live changes to entries this user is allowed to see (RLS applies).

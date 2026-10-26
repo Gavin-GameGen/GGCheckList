@@ -34,7 +34,6 @@ self.C3_GetObjectRefTable = function () {
 		C3.Plugins.System.Acts.SetVar,
 		C3.JavaScriptInEvents.Studentlogic_Event2,
 		C3.JavaScriptInEvents.Studentlogic_Event6,
-		C3.JavaScriptInEvents.Studentlogic_Event8,
 		C3.JavaScriptInEvents.Mentorlogic_Event2,
 		C3.Plugins.System.Cnds.OnLayoutEnd,
 		C3.JavaScriptInEvents.Mentorlogic_Event4,
@@ -134,10 +133,10 @@ self.C3_JsPropNameTable = [
 	{SSpriteLevelUp: 0},
 	{STextLeveUp: 0},
 	{SSpriteConfetti: 0},
+	{STextHeldEXP: 0},
 	{PTextInfo: 0},
 	{JSON: 0},
 	{Touch: 0},
-	{TestLevelUpButton: 0},
 	{Testing: 0},
 	{row: 0},
 	{ok: 0},
@@ -206,8 +205,8 @@ self.InstanceType = {
 	SSpriteLevelUp: class extends self.ISpriteInstance {},
 	STextLeveUp: class extends self.ITextInstance {},
 	SSpriteConfetti: class extends self.ISpriteInstance {},
+	STextHeldEXP: class extends self.ITextInstance {},
 	PTextInfo: class extends self.ITextInstance {},
 	JSON: class extends self.IJSONInstance {},
-	Touch: class extends self.IInstance {},
-	TestLevelUpButton: class extends self.ISpriteInstance {}
+	Touch: class extends self.IInstance {}
 }

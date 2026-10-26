@@ -32,8 +32,11 @@ const scriptsInEvents = {
 		  const totals = await api.getTotals();
 		  const totalText = runtime.objects.STextTotalEXP.getFirstInstance();
 		  const tempText  = runtime.objects.STextTempEXP.getFirstInstance();
+		  const heldText  = runtime.objects.STextHeldEXP.getFirstInstance();
 		  if (totalText) totalText.text = "Total EXP: " + (totals?.total_exp ?? 0);
 		  if (tempText)  tempText.text  = "Today's EXP: +" + (totals?.pending_exp ?? 0);
+		  // Yesterday's EXP: cleared from the checklist at midnight, added to the total at 10am.
+		  if (heldText)  heldText.text  = "Held EXP: +" + (totals?.held_exp ?? 0);
 		  // Fill the level bar and set its "total / next level" text (see level.js).
 		  updateProgressBar(runtime, totals?.total_exp ?? 0);
 		  // Play the level-up celebration if they have gone up a level since they last saw it
@@ -57,25 +60,6 @@ const scriptsInEvents = {
 		}
 	},
 
-	async Studentlogic_Event2(runtime, localVars)
-	{
-		// Reload totals every few minutes and when the app comes back to the foreground,
-		// so EXP committed at 10am (and any level-up) shows up while the app is open.
-		watchForCommittedExp(runtime);
-	},
-
-	async Studentlogic_Event6(runtime, localVars)
-	{
-		// Plays the level-up banner drop + confetti (see levelup.js to tweak).
-		playLevelUp(runtime);
-	},
-
-	async Studentlogic_Event8(runtime, localVars)
-	{
-		// Tap the banner (or its text, which sits on top of it) to send it back up early.
-		dismissLevelUp();
-	},
-
 	async Bootlogic_Event4(runtime, localVars)
 	{
 		try {
@@ -92,6 +76,19 @@ const scriptsInEvents = {
 		} catch (err) {
 		  console.error("Boot failed:", err);
 		}
+	},
+
+	async Studentlogic_Event2(runtime, localVars)
+	{
+		// Reload totals every few minutes and when the app comes back to the foreground,
+		// so EXP committed at 10am (and any level-up) shows up while the app is open.
+		watchForCommittedExp(runtime);
+	},
+
+	async Studentlogic_Event6(runtime, localVars)
+	{
+		// Tap the banner (or its text, which sits on top of it) to send it back up early.
+		dismissLevelUp();
 	},
 
 	async Mentorlogic_Event2(runtime, localVars)
