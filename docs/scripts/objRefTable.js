@@ -55,21 +55,24 @@ self.C3_GetObjectRefTable = function () {
 		C3.JavaScriptInEvents.Adminlogic_Event8,
 		C3.JavaScriptInEvents.Adminlogic_Event11,
 		C3.Plugins.Json.Exps.ArraySize,
-		C3.JavaScriptInEvents.Adminlogic_Event17,
+		C3.JavaScriptInEvents.Adminlogic_Event18,
 		C3.Plugins.System.Exps.max,
 		C3.Plugins.Sprite.Acts.SetSize,
 		C3.Plugins.System.Exps.tokenat,
-		C3.JavaScriptInEvents.Adminlogic_Event22,
-		C3.JavaScriptInEvents.Adminlogic_Event24,
-		C3.JavaScriptInEvents.Adminlogic_Event26,
-		C3.JavaScriptInEvents.Adminlogic_Event28,
-		C3.JavaScriptInEvents.Adminlogic_Event30,
+		C3.JavaScriptInEvents.Adminlogic_Event23,
+		C3.JavaScriptInEvents.Adminlogic_Event25,
+		C3.JavaScriptInEvents.Adminlogic_Event27,
+		C3.JavaScriptInEvents.Adminlogic_Event29,
+		C3.JavaScriptInEvents.Adminlogic_Event31,
 		C3.Plugins.Text.Cnds.CompareInstanceVar,
 		C3.Plugins.Text.Exps.X,
 		C3.Plugins.Text.Exps.Y,
-		C3.JavaScriptInEvents.Adminlogic_Event33,
-		C3.JavaScriptInEvents.Adminlogic_Event36,
-		C3.JavaScriptInEvents.Adminlogic_Event38
+		C3.JavaScriptInEvents.Adminlogic_Event34,
+		C3.JavaScriptInEvents.Adminlogic_Event37,
+		C3.JavaScriptInEvents.Adminlogic_Event39,
+		C3.JavaScriptInEvents.Viewswitch_Event2,
+		C3.JavaScriptInEvents.Viewswitch_Event4,
+		C3.JavaScriptInEvents.Viewswitch_Event6
 	];
 };
 self.C3_JsPropNameTable = [
@@ -137,6 +140,8 @@ self.C3_JsPropNameTable = [
 	{SSpriteLockedBackground: 0},
 	{STextLockedInfo: 0},
 	{PTextInfo: 0},
+	{SwitchViewButton: 0},
+	{SwitchViewText: 0},
 	{JSON: 0},
 	{Touch: 0},
 	{Testing: 0},
@@ -211,6 +216,8 @@ self.InstanceType = {
 	SSpriteLockedBackground: class extends self.ISpriteInstance {},
 	STextLockedInfo: class extends self.ITextInstance {},
 	PTextInfo: class extends self.ITextInstance {},
+	SwitchViewButton: class extends self.ISpriteInstance {},
+	SwitchViewText: class extends self.ITextInstance {},
 	JSON: class extends self.IJSONInstance {},
 	Touch: class extends self.IInstance {}
 }

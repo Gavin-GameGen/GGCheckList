@@ -9,6 +9,7 @@ import { levelInfo, updateProgressBar } from "./level.js";
 import { playLevelUp, dismissLevelUp, stopLevelUp, isLevelUpPlaying, checkForLevelUp, watchForCommittedExp, LEVEL_UP_FX } from "./levelup.js";
 import { isWeekendLocked, applyWeekendLock, softRefresh, hardRefresh, pacificNow, SCHEDULE, WEEKEND_LOCK } from "./schedule.js";
 import { orderAdminUsers, reorderAdminUsers, decorateAdminRows, resetAdminSearch } from "./adminsearch.js";
+import { initViewSwitch, switchViewFromTap } from "./viewswitch.js";
 
 
 const scriptsInEvents = {
@@ -81,20 +82,176 @@ const scriptsInEvents = {
 		}
 	},
 
-	async Studentlogic_Event2(runtime, localVars)
+	async Adminlogic_Event2(runtime, localVars)
 	{
-		// Reload totals every few minutes and when the app comes back to the foreground,
-		// so EXP committed at 10am (and any level-up) shows up while the app is open.
-		watchForCommittedExp(runtime);
-		
-		// Saturday and Sunday (Pacific): cover the screen with the lock sprite and text.
-		applyWeekendLock(runtime);
+		// The bar gets a real HTML text box laid over ASpriteSearchBarBG
+		// (studentsearch.js). With onType there is no drop-down: it just reports
+		// what is typed and the table is re-sorted.
+		initStudentSearch(runtime, {
+		  bar:         "ASpriteSearchBarBG",
+		  placeholder: "ATextSearchBarText",
+		  onType:      text => reorderAdminUsers(runtime, text)
+		});
 	},
 
-	async Studentlogic_Event6(runtime, localVars)
+	async Adminlogic_Event4(runtime, localVars)
 	{
-		// Tap the banner (or its text, which sits on top of it) to send it back up early.
-		dismissLevelUp();
+		// Take the text box off the page and forget the search.
+		destroyStudentSearch();
+		resetAdminSearch();
+	},
+
+	async Adminlogic_Event6(runtime, localVars)
+	{
+		// The slide-out Details panel (detailbox.js). Tap a student's name to
+		// select them, then tap the "<" tab on the right edge to slide it in.
+		initDetailBox(runtime, {
+		  box:   "ASpriteDetailBoxBG",
+		  text:  "ATextDetail",
+		  layer: "Popup",
+		  names: "ATextUserRow",
+		  // Only the name cell of a student row can be selected.
+		  idOf: cell => cell.instVars.col === "name" && cell.instVars.role === "student" ? cell.instVars.userId : "",
+		  describe: id => {
+		    const json  = runtime.objects.AJsonUsers.getFirstInstance();
+		    const users = json ? json.getJsonDataCopy() : [];
+		    const user  = (Array.isArray(users) ? users : []).find(u => u.user_id === id);
+		    if (!user) return { title: "Details", body: "" };
+		    return {
+		      title: user.display_name,
+		      body: [
+		        "Role:  [b]" + user.role + "[/b]",
+		        "Mentor:  [b]" + (user.mentor_name || "Unassigned") + "[/b]",
+		        "User ID:  " + user.user_id
+		      ].join("\n")
+		    };
+		  },
+		  // The panel covers the Details column, so put any open dropdown away.
+		  onOpen: () => {
+		    closeMentorDropdown(runtime);
+		    runtime.callFunction("CloseRoleDropdown");
+		  }
+		});
+	},
+
+	async Adminlogic_Event8(runtime, localVars)
+	{
+		// The user list can be taller than the screen, so give it a scrollbar.
+		// Mouse wheel, dragging the thumb, or clicking the track all scroll it.
+		initListScroll(runtime, {
+		  rows: "ATextUserRow",
+		  track: "ASpriteScrollTrack",
+		  thumb: "ASpriteScrollThumb",
+		  top: 200,          // just under the column headings
+		  bottom: 1040,      // bottom of the layout
+		  wheelStep: 70,     // one row per wheel notch
+		  onScroll: () => {
+		    // A dropdown left open would float away from its row.
+		    if (runtime.globalVars.DropdownUserId !== "") {
+		      closeMentorDropdown(runtime);
+		      runtime.callFunction("CloseRoleDropdown");
+		    }
+		  }
+		});
+	},
+
+	async Adminlogic_Event11(runtime, localVars)
+	{
+		try {
+		  const users = await api.listUsers();
+		  // Sorted for whatever is in the search bar, so a reload keeps the order.
+		  runtime.objects.AJsonUsers.getFirstInstance().setJsonDataCopy(orderAdminUsers(users ?? []));
+		  runtime.callFunction("OnUsersLoaded");
+		} catch (err) {
+		  console.error("Loading users failed:", err);
+		  runtime.callFunction("ShowAdminStatus", "Couldn't load users: " + err.message);
+		}
+	},
+
+	async Adminlogic_Event18(runtime, localVars)
+	{
+		// The rows were just rebuilt: re-measure the list and resize the
+		// scrollbar. The scroll position is kept where the user left it.
+		// Bold the matched letters and fade rows that don't match the search bar.
+		// Does nothing while the bar is empty.
+		decorateAdminRows(runtime);
+		
+		refreshListScroll();
+		
+		// Put the highlight back on the selected student's new name cell and
+		// refresh the Details panel (e.g. their mentor just changed).
+		refreshDetailBox();
+	},
+
+	async Adminlogic_Event23(runtime, localVars)
+	{
+		const userId = runtime.globalVars.DropdownUserId;
+		const role = localVars.roleLocal;
+		runtime.callFunction("CloseRoleDropdown");
+		if (!role) return;   // Cancel
+		
+		runtime.globalVars.AdminBusy = true;
+		try {
+		  await api.setUserRole(userId, role);
+		  runtime.callFunction("LoadUsers");   // redraw the list with the new role
+		} catch (err) {
+		  console.error("Role change failed:", err);
+		  runtime.callFunction("ShowAdminStatus", "Couldn't change role: " + err.message);
+		} finally {
+		  runtime.globalVars.AdminBusy = false;
+		}
+	},
+
+	async Adminlogic_Event25(runtime, localVars)
+	{
+		// detailbox.js ignores every cell except a student's name.
+		selectStudentFromTap(runtime);
+	},
+
+	async Adminlogic_Event27(runtime, localVars)
+	{
+		tapDetailBox(runtime.globalVars.ADetailTapX, runtime.globalVars.ADetailTapY);
+	},
+
+	async Adminlogic_Event29(runtime, localVars)
+	{
+		// Slides the Details panel a frame's worth.
+		stepDetailBox(runtime.dt);
+	},
+
+	async Adminlogic_Event31(runtime, localVars)
+	{
+		tapDetailText(runtime);
+	},
+
+	async Adminlogic_Event34(runtime, localVars)
+	{
+		// A Details cell hidden behind the open Details panel does nothing.
+		const cell = runtime.objects.ATextUserRow.getFirstPickedInstance();
+		if (isUnderDetailBox(cell)) {
+		  runtime.globalVars.DropdownUserId = "";
+		  return;
+		}
+		closeDetailBox();
+		
+		// The panel opens against the row it belongs to: just under it normally,
+		// and just above it when the row sits near the bottom of the screen.
+		// With dozens of mentors the list inside gets its own scrollbar.
+		const row = runtime.objects.ATextUserRow.getFirstPickedInstance();
+		if (row)
+		  await openMentorDropdown(runtime, row.instVars.userId, row.x, row.y, row.height);
+	},
+
+	async Adminlogic_Event37(runtime, localVars)
+	{
+		// Sets that mentor as the student's one mentor, replacing whoever
+		// was there, and closes the panel.
+		await pickMentorFromTap(runtime);
+	},
+
+	async Adminlogic_Event39(runtime, localVars)
+	{
+		closeMentorDropdown(runtime);
 	},
 
 	async Mentorlogic_Event2(runtime, localVars)
@@ -189,176 +346,36 @@ const scriptsInEvents = {
 		tapDetailText(runtime);
 	},
 
-	async Adminlogic_Event2(runtime, localVars)
+	async Studentlogic_Event2(runtime, localVars)
 	{
-		// The bar gets a real HTML text box laid over ASpriteSearchBarBG
-		// (studentsearch.js). With onType there is no drop-down: it just reports
-		// what is typed and the table is re-sorted.
-		initStudentSearch(runtime, {
-		  bar:         "ASpriteSearchBarBG",
-		  placeholder: "ATextSearchBarText",
-		  onType:      text => reorderAdminUsers(runtime, text)
-		});
-	},
-
-	async Adminlogic_Event4(runtime, localVars)
-	{
-		// Take the text box off the page and forget the search.
-		destroyStudentSearch();
-		resetAdminSearch();
-	},
-
-	async Adminlogic_Event6(runtime, localVars)
-	{
-		// The slide-out Details panel (detailbox.js). Tap a student's name to
-		// select them, then tap the "<" tab on the right edge to slide it in.
-		initDetailBox(runtime, {
-		  box:   "ASpriteDetailBoxBG",
-		  text:  "ATextDetail",
-		  layer: "Popup",
-		  names: "ATextUserRow",
-		  // Only the name cell of a student row can be selected.
-		  idOf: cell => cell.instVars.col === "name" && cell.instVars.role === "student" ? cell.instVars.userId : "",
-		  describe: id => {
-		    const json  = runtime.objects.AJsonUsers.getFirstInstance();
-		    const users = json ? json.getJsonDataCopy() : [];
-		    const user  = (Array.isArray(users) ? users : []).find(u => u.user_id === id);
-		    if (!user) return { title: "Details", body: "" };
-		    return {
-		      title: user.display_name,
-		      body: [
-		        "Role:  [b]" + user.role + "[/b]",
-		        "Mentor:  [b]" + (user.mentor_name || "Unassigned") + "[/b]",
-		        "User ID:  " + user.user_id
-		      ].join("\n")
-		    };
-		  },
-		  // The panel covers the Details column, so put any open dropdown away.
-		  onOpen: () => {
-		    closeMentorDropdown(runtime);
-		    runtime.callFunction("CloseRoleDropdown");
-		  }
-		});
-	},
-
-	async Adminlogic_Event8(runtime, localVars)
-	{
-		// The user list can be taller than the screen, so give it a scrollbar.
-		// Mouse wheel, dragging the thumb, or clicking the track all scroll it.
-		initListScroll(runtime, {
-		  rows: "ATextUserRow",
-		  track: "ASpriteScrollTrack",
-		  thumb: "ASpriteScrollThumb",
-		  top: 200,          // just under the column headings
-		  bottom: 1040,      // bottom of the layout
-		  wheelStep: 70,     // one row per wheel notch
-		  onScroll: () => {
-		    // A dropdown left open would float away from its row.
-		    if (runtime.globalVars.DropdownUserId !== "") {
-		      closeMentorDropdown(runtime);
-		      runtime.callFunction("CloseRoleDropdown");
-		    }
-		  }
-		});
-	},
-
-	async Adminlogic_Event11(runtime, localVars)
-	{
-		try {
-		  const users = await api.listUsers();
-		  // Sorted for whatever is in the search bar, so a reload keeps the order.
-		  runtime.objects.AJsonUsers.getFirstInstance().setJsonDataCopy(orderAdminUsers(users ?? []));
-		  runtime.callFunction("OnUsersLoaded");
-		} catch (err) {
-		  console.error("Loading users failed:", err);
-		  runtime.callFunction("ShowAdminStatus", "Couldn't load users: " + err.message);
-		}
-	},
-
-	async Adminlogic_Event17(runtime, localVars)
-	{
-		// The rows were just rebuilt: re-measure the list and resize the
-		// scrollbar. The scroll position is kept where the user left it.
-		// Bold the matched letters and fade rows that don't match the search bar.
-		// Does nothing while the bar is empty.
-		decorateAdminRows(runtime);
+		// Reload totals every few minutes and when the app comes back to the foreground,
+		// so EXP committed at 10am (and any level-up) shows up while the app is open.
+		watchForCommittedExp(runtime);
 		
-		refreshListScroll();
-		
-		// Put the highlight back on the selected student's new name cell and
-		// refresh the Details panel (e.g. their mentor just changed).
-		refreshDetailBox();
+		// Saturday and Sunday (Pacific): cover the screen with the lock sprite and text.
+		applyWeekendLock(runtime);
 	},
 
-	async Adminlogic_Event22(runtime, localVars)
+	async Studentlogic_Event6(runtime, localVars)
 	{
-		const userId = runtime.globalVars.DropdownUserId;
-		const role = localVars.roleLocal;
-		runtime.callFunction("CloseRoleDropdown");
-		if (!role) return;   // Cancel
-		
-		runtime.globalVars.AdminBusy = true;
-		try {
-		  await api.setUserRole(userId, role);
-		  runtime.callFunction("LoadUsers");   // redraw the list with the new role
-		} catch (err) {
-		  console.error("Role change failed:", err);
-		  runtime.callFunction("ShowAdminStatus", "Couldn't change role: " + err.message);
-		} finally {
-		  runtime.globalVars.AdminBusy = false;
-		}
+		// Tap the banner (or its text, which sits on top of it) to send it back up early.
+		dismissLevelUp();
 	},
 
-	async Adminlogic_Event24(runtime, localVars)
+	async Viewswitch_Event2(runtime, localVars)
 	{
-		// detailbox.js ignores every cell except a student's name.
-		selectStudentFromTap(runtime);
+		// Shows the button for admins and sets its wording for this view.
+		initViewSwitch(runtime);
 	},
 
-	async Adminlogic_Event26(runtime, localVars)
+	async Viewswitch_Event4(runtime, localVars)
 	{
-		tapDetailBox(runtime.globalVars.ADetailTapX, runtime.globalVars.ADetailTapY);
+		switchViewFromTap(runtime);
 	},
 
-	async Adminlogic_Event28(runtime, localVars)
+	async Viewswitch_Event6(runtime, localVars)
 	{
-		// Slides the Details panel a frame's worth.
-		stepDetailBox(runtime.dt);
-	},
-
-	async Adminlogic_Event30(runtime, localVars)
-	{
-		tapDetailText(runtime);
-	},
-
-	async Adminlogic_Event33(runtime, localVars)
-	{
-		// A Details cell hidden behind the open Details panel does nothing.
-		const cell = runtime.objects.ATextUserRow.getFirstPickedInstance();
-		if (isUnderDetailBox(cell)) {
-		  runtime.globalVars.DropdownUserId = "";
-		  return;
-		}
-		closeDetailBox();
-		
-		// The panel opens against the row it belongs to: just under it normally,
-		// and just above it when the row sits near the bottom of the screen.
-		// With dozens of mentors the list inside gets its own scrollbar.
-		const row = runtime.objects.ATextUserRow.getFirstPickedInstance();
-		if (row)
-		  await openMentorDropdown(runtime, row.instVars.userId, row.x, row.y, row.height);
-	},
-
-	async Adminlogic_Event36(runtime, localVars)
-	{
-		// Sets that mentor as the student's one mentor, replacing whoever
-		// was there, and closes the panel.
-		await pickMentorFromTap(runtime);
-	},
-
-	async Adminlogic_Event38(runtime, localVars)
-	{
-		closeMentorDropdown(runtime);
+		switchViewFromTap(runtime);
 	}
 };
 

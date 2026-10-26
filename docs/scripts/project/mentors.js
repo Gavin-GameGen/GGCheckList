@@ -13,7 +13,7 @@
 //   * a student near the bottom of the screen would have the panel run off
 //     the edge, so it opens upwards instead when there is more room above.
 
-import { api } from "./data.js";
+import { api, canMentor } from "./data.js";
 import { initScroller, refreshScroller, destroyScroller } from "./scroll.js";
 
 const SCROLLER   = "mentors";
@@ -60,7 +60,7 @@ export async function openMentorDropdown(runtime, studentId, x, rowY, rowH) {
 	// Clearing the mentor is a choice like any other, so it gets a line too.
 	const lines = [{ action: "clear", id: "", name: "— No mentor —" }];
 	for (const m of mentors)
-		lines.push({ action: "assign", id: m.user_id, name: m.display_name });
+		lines.push({ action: "assign", id: m.user_id, name: m.display_name + (m.role === "admin" ? "  [color=#777777](admin)[/color]" : "") });
 	if (mentors.length === 0)
 		lines.push({ action: "", id: "", name: "No mentors yet — set someone's role to mentor first" });
 
@@ -208,7 +208,8 @@ function mentorsFromList(runtime) {
 	const json  = runtime.objects.AJsonUsers.getFirstInstance();
 	const users = json ? json.getJsonDataCopy() : [];
 	return (Array.isArray(users) ? users : [])
-		.filter(u => u.role === "mentor")
+		// Admins can have students too; they are marked "(admin)" in the list.
+		.filter(u => canMentor(u.role))
 		.sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 

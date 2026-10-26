@@ -189,6 +189,14 @@ export async function loadMentorBoard(runtime) {
 	refreshDetailBox();
 }
 
+// How many rows have ticks that have not been submitted yet. The view
+// switch button (viewswitch.js) warns before leaving while this is above 0.
+export function unsavedRowCount() {
+	let count = 0;
+	for (const row of rows.values()) if (row.dirty) count++;
+	return count;
+}
+
 // Takes every instance this module created back off the layout. The
 // headings and anything else placed in the editor are left alone.
 export function clearMentorBoard() {

@@ -30,15 +30,21 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_CtIkh_CC-hG3dLwy3zLp5g_mEo2AF0W
 
 export const ROLES = ["pending", "student", "mentor", "admin"];
 
+// Roles that can have students assigned to them and use the mentor view.
+// Admins can do everything a mentor can, on top of the admin view.
+export const MENTOR_ROLES = ["mentor", "admin"];
+export const canMentor = role => MENTOR_ROLES.includes(role);
+
 // ---------------------------------------------------------------- mock data
 // Everything the mock backend pretends to know lives in this one table, so
 // it can be edited without touching any of the code further down.
 //
 //   role       pending | student | mentor | admin
 //   mentor     students only: the display_name of their one mentor, exactly
-//              as it is spelled in this table, or "" for unassigned. A name
-//              that is not a mentor here is left unassigned and said so in
-//              the browser console.
+//              as it is spelled in this table, or "" for unassigned. The
+//              mentor can be a mentor or an admin (admins can have students
+//              too). A name that is neither is left unassigned and said so
+//              in the browser console.
 //   total_exp  students only: EXP already banked in the permanent total.
 //              Today's unconfirmed EXP is not in here; it comes from the
 //              checklist below.
@@ -84,7 +90,7 @@ const MOCK_USERS = [
 // so reassigning someone in the admin view does not rewrite the table above.
 function assignmentsFromUsers(users) {
   const mentorIdByName = new Map(
-    users.filter(u => u.role === "mentor")
+    users.filter(u => canMentor(u.role))
          .map(u => [u.display_name.trim().toLowerCase(), u.user_id])
   );
 
@@ -99,7 +105,7 @@ function assignmentsFromUsers(users) {
     }
     const mentorId = mentorIdByName.get(wanted.toLowerCase());
     if (!mentorId) {
-      console.warn(`[mock] ${user.display_name}'s mentor "${wanted}" is not a mentor in MOCK_USERS - left unassigned`);
+      console.warn(`[mock] ${user.display_name}'s mentor "${wanted}" is not a mentor or admin in MOCK_USERS - left unassigned`);
       continue;
     }
     rows.push({ mentor_id: mentorId, student_id: user.user_id });
@@ -196,8 +202,8 @@ function pinsFromMock(users) {
   const pins = new Map();
 
   for (const [mentorId, ids] of Object.entries(MOCK_PINS)) {
-    if (roleOf.get(mentorId) !== "mentor") {
-      console.warn(`[mock] MOCK_PINS has "${mentorId}", who is not a mentor in MOCK_USERS - ignored`);
+    if (!canMentor(roleOf.get(mentorId))) {
+      console.warn(`[mock] MOCK_PINS has "${mentorId}", who is not a mentor or admin in MOCK_USERS - ignored`);
       continue;
     }
     const set = new Set();
@@ -317,7 +323,7 @@ const mock = {
       mentor_name: u.role === "student"
         ? (this._mentorFor(u.user_id)?.display_name ?? "")
         : "",
-      student_count: u.role === "mentor"
+      student_count: canMentor(u.role)
         ? this.assignments.filter(a => a.mentor_id === u.user_id).length
         : 0
     }));
@@ -331,7 +337,12 @@ const mock = {
     if (user.role === "admin" && this.users.filter(u => u.role === "admin").length === 1) {
       throw new Error("Can't change the last admin's role");
     }
-    if (user.role === "mentor")  this.assignments = this.assignments.filter(a => a.mentor_id !== userId);
+    // Moving between mentor and admin keeps their students; dropping to
+    // student or pending takes the students (and pins) off them.
+    if (canMentor(user.role) && !canMentor(role)) {
+      this.assignments = this.assignments.filter(a => a.mentor_id !== userId);
+      this.pins.delete(userId);
+    }
     if (user.role === "student") this.assignments = this.assignments.filter(a => a.student_id !== userId);
     user.role = role;
   },
@@ -349,7 +360,7 @@ const mock = {
 
   async assignStudent(mentorId, studentId) {
     this._requireRole("admin");
-    if (this._user(mentorId).role !== "mentor")   throw new Error("That user is not a mentor");
+    if (!canMentor(this._user(mentorId).role))    throw new Error("That user is not a mentor or admin");
     if (this._user(studentId).role !== "student") throw new Error("That user is not a student");
     // One mentor per student, so this replaces whoever was there before.
     this.assignments = this.assignments.filter(a => a.student_id !== studentId);
@@ -363,7 +374,7 @@ const mock = {
 
   // mentor
   async getMyStudents() {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     return this.assignments
       .filter(a => a.mentor_id === me.user_id)
       .map(a => this._user(a.student_id))
@@ -376,7 +387,7 @@ const mock = {
   // The items are in the same order as listChecklistItems(), so the nth
   // entry is always the nth column.
   async getMyStudentsChecklists() {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     return this.assignments
       .filter(a => a.mentor_id === me.user_id)
       .map(a => this._user(a.student_id))
@@ -389,7 +400,7 @@ const mock = {
   //   is_mine    assigned to the signed-in mentor (already on their view)
   //   is_pinned  pinned by the signed-in mentor
   async searchStudents(query) {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     const q = normalizeQuery(query);
     if (!q) return [];
 
@@ -413,13 +424,13 @@ const mock = {
 
   // Pins are per mentor and change nobody's assignment.
   async pinStudent(studentId) {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     if (this._user(studentId).role !== "student") throw new Error("That user is not a student");
     this._pinsFor(me.user_id).add(studentId);
   },
 
   async unpinStudent(studentId) {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     this._pinsFor(me.user_id).delete(studentId);
   },
 
@@ -428,7 +439,7 @@ const mock = {
   // since been assigned to this mentor is left out here (they are already
   // in the top list), and so is anyone who is no longer a student.
   async getPinnedStudentsChecklists() {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     return [...this._pinsFor(me.user_id)]
       .map(id => this.users.find(u => u.user_id === id))
       .filter(u => u && u.role === "student")
@@ -443,7 +454,7 @@ const mock = {
   // Allowed for the mentor's own students and for students they have
   // pinned; the whole row is saved either way.
   async setStudentChecklist(studentId, doneItemIds) {
-    const me = this._requireRole("mentor");
+    const me = this._requireRole(...MENTOR_ROLES);
     const mentor = this._mentorFor(studentId);
     const mine = !!mentor && mentor.user_id === me.user_id;
     const pinned = this._pinsFor(me.user_id).has(studentId);
