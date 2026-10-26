@@ -10,6 +10,7 @@ import { playLevelUp, dismissLevelUp, stopLevelUp, isLevelUpPlaying, checkForLev
 import { isWeekendLocked, applyWeekendLock, softRefresh, hardRefresh, pacificNow, SCHEDULE, WEEKEND_LOCK, DAY_ONLY_ITEMS, itemsForToday, checklistDay } from "./schedule.js";
 import { orderAdminUsers, reorderAdminUsers, decorateAdminRows, resetAdminSearch } from "./adminsearch.js";
 import { initViewSwitch, switchViewFromTap } from "./viewswitch.js";
+import { bootSignedIn } from "./boot.js";
 
 
 const scriptsInEvents = {
@@ -71,13 +72,12 @@ const scriptsInEvents = {
 		  if (runtime.globalVars.Testing) {
 		    setMockMode(true);
 		    setMockUserByRole(runtime.globalVars.Role);
+		    runtime.callFunction("ApplyRole");
 		  } else {
 		    setMockMode(false);
-		    await api.signIn();
-		    const profile = await api.getProfile();
-		    runtime.globalVars.Role = profile?.role ?? "pending";
+		    // Jumps straight to the role saved from last visit, then checks it (boot.js).
+		    await bootSignedIn(runtime);
 		  }
-		  runtime.callFunction("ApplyRole");
 		} catch (err) {
 		  console.error("Boot failed:", err);
 		}
